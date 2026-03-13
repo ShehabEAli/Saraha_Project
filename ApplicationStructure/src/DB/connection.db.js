@@ -1,6 +1,6 @@
 import mongoose from "mongoose"
 import { DB_URI } from "../../config/config.service.js"
-import { UserModel } from "./model/index.js";
+import { UserModel } from "./models/index.js";
 
 
 
