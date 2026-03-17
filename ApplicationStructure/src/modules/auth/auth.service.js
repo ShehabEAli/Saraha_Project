@@ -1,6 +1,4 @@
-import { SALT_ROUND } from "../../../config/config.service.js";
-import { HashApproachEnum } from "../../common/enums/security.enum.js";
-import { compareHash, ConflictException, generateHash, NotFoundException } from "../../common/utils/index.js";
+import { compareHash, ConflictException, decrypt, encrypt, generateHash, NotFoundException } from "../../common/utils/index.js";
 import { create, findOne, UserModel } from "../../DB/index.js";
 
 
@@ -24,7 +22,7 @@ export const signup = async (inputs) => {
             username,
             email,
             password: await generateHash({ plainText: password }),
-            phone
+            phone: encrypt(phone)
         }
     });
     return user
@@ -43,5 +41,6 @@ export const login = async (inputs) => {
     if (! await compareHash({ plainText: password, cipherText: user.password })) {
         throw NotFoundException({ message: "Invalid login credentials " });
     }
+    user.phone = await decrypt(user.phone)
     return user
 }
