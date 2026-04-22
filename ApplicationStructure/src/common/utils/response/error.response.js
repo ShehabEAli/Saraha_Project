@@ -36,8 +36,9 @@ export const globalErrorHandling = (error, req, res, next) => {
     const displayErrorMessage = error.message || defaultErrorMessage;
     return res.status(status).json({
         status,
+        errorMessage: mood ? status == 500 ? defaultErrorMessage : displayErrorMessage : displayErrorMessage,
+        extra: error?.cause?.extra || undefined,
         stack: mood ? undefined : error.stack,
-        errorMessage: mood ? status == 500 ? defaultErrorMessage : displayErrorMessage : displayErrorMessage
     })
 }
 

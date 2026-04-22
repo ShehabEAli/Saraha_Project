@@ -3,6 +3,7 @@ import { port } from '../config/config.service.js'
 import { globalErrorHandling } from './common/utils/index.js'
 import { authenticationDB } from './DB/index.js'
 import { authRouter, userRouter } from './modules/index.js'
+import { resolve } from 'node:path'
 import express from 'express'
 import cors from 'cors'
 
@@ -10,7 +11,7 @@ async function bootstrap() {
     const app = express()
     //convert buffer data
     app.use(cors(), express.json())
-
+    app.use("/uploads", express.static(resolve("../uploads")))
     //DB Connection
     await authenticationDB()
     //application routing
