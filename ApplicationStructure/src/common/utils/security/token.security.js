@@ -5,6 +5,7 @@ import jwt, { decode } from 'jsonwebtoken'
 import { TokenTypeEnum } from "../../enums/security.enum.js"
 import { RoleEnum } from "../../enums/user.enum.js"
 import { randomUUID } from 'node:crypto'
+import { get, revokeTokenKey } from "../../services/index.js"
 
 
 
@@ -52,12 +53,12 @@ export const decodeToken = async ({ token, tokenType = TokenTypeEnum.Access } = 
         throw BadRequestException({ message: "Missing token audience" })
     }
 
-    const [tokenApproach, level] = decoded.aud || [];
+    const [tokenApproach, level] = decoded.aud;
     console.log(tokenApproach);
     if (tokenType !== tokenApproach) {
         throw ConflictException({ message: `Unexpected token mechanism which we expected ${tokenType} while you have used ${tokenApproach}` })
     }
-    if (decoded.jti && await findOne({ model: tokenModel, filter: { jti: decoded.jti } })) {
+    if (decoded.jti && await get(revokeTokenKey({ userId: decoded.sub, jti: decoded.jti }))) {
         throw UnauthorizedException({ message: "Invalid login session" })
     }
 

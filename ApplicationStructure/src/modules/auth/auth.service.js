@@ -1,7 +1,49 @@
-import { ProviderEnum } from "../../common/enums/index.js";
-import { BadRequestException, compareHash, ConflictException, createLoginCredentials, encrypt, generateHash, NotFoundException } from "../../common/utils/index.js";
+import { EmailEnum, ProviderEnum } from "../../common/enums/index.js";
+import { blockOtpKey, deleteKey, get, incr, keys, maxAttemptOtpKey, otpKey, set, ttl } from "../../common/services/index.js";
+import { BadRequestException, compareHash, ConflictException, createLoginCredentials, createNumberOtp, emailEvent, encrypt, generateHash, NotFoundException, sendEmail, verifyEmailTemplate } from "../../common/utils/index.js";
 import { create, findOne, UserModel } from "../../DB/index.js";
 import { OAuth2Client } from 'google-auth-library';
+
+
+
+const sendEmailOtp = async ({ email, subject, title } = {}) => {
+    const isBlockedTTL = await ttl(blockOtpKey({ email, subject }))
+    if (isBlockedTTL > 0) {
+        throw BadRequestException({ message: `Sorry you cannot request a new otp while you are blocked, please try again after ${isBlockedTTL} seconds` });
+    }
+
+    const remainingOtpTTL = await ttl(otpKey({ email, subject }))
+    if (remainingOtpTTL > 0) {
+        throw BadRequestException({ message: "Sorry you cannot request a new otp until the first one is expired, please try again later" });
+    }
+
+    const maxTrial = await get(maxAttemptOtpKey({ email, subject }))
+    if (maxTrial >= 3) {
+        await set({
+            key: blockOtpKey({ email, subject }),
+            value: 1,
+            ttl: 420
+        })
+        throw BadRequestException({ message: "You have reached the the max trial" });
+    }
+
+    const code = await createNumberOtp()
+    await set({
+        key: otpKey({ email, subject }),
+        value: await generateHash({ plainText: `${code}` }),
+        ttl: 120
+    })
+
+    emailEvent.emit("sendEmail", async () => {
+        await sendEmail({
+            to: email,
+            subject,
+            html: verifyEmailTemplate({ code, title })
+        })
+
+        await incr(maxAttemptOtpKey({ email, subject }))
+    })
+}
 
 export const signup = async (inputs) => {
     const { username, email, password, phone } = inputs;
@@ -24,7 +66,52 @@ export const signup = async (inputs) => {
             phone: encrypt(phone)
         }
     });
+
+    await sendEmailOtp({ email, subject: EmailEnum.ConfirmEmail, title: "Verify Email" })
     return user
+}
+
+export const confirmEmail = async (inputs) => {
+    const { email, otp } = inputs;
+
+    const hashOtp = await get(otpKey({ email, subject: EmailEnum.ConfirmEmail }))
+    if (!hashOtp) {
+        throw NotFoundException({ message: "Expired or Invalid otp" });
+    }
+
+    const account = await findOne({
+        model: UserModel,
+        filter: { email, confirmEmail: { $exists: false }, provider: ProviderEnum.System },
+    });
+    if (!account) {
+        throw NotFoundException({ message: "Fail to find matching account" });
+    }
+
+    if (!await compareHash({ plainText: otp, cipherText: hashOtp })) {
+        throw ConflictException({ message: "Invalid otp" });
+    }
+
+    account.confirmEmail = new Date()
+    await account.save()
+
+    await deleteKey(await keys(otpKey({ email })))
+    return;
+}
+
+export const resendConfirmEmail = async (inputs) => {
+    const { email } = inputs;
+
+    const account = await findOne({
+        model: UserModel,
+        filter: { email, confirmEmail: { $exists: false }, provider: ProviderEnum.System },
+    });
+    if (!account) {
+        throw NotFoundException({ message: "Fail to find matching account" });
+    }
+
+    await sendEmailOtp({ email, subject: EmailEnum.ConfirmEmail, title: "Verify Email" })
+
+    return;
 }
 
 export const login = async (inputs, issuer) => {
@@ -32,7 +119,7 @@ export const login = async (inputs, issuer) => {
 
     const user = await findOne({
         model: UserModel,
-        filter: { email, provider: ProviderEnum.System },
+        filter: { email, provider: ProviderEnum.System, confirmEmail: { $exists: true } },
     });
     if (!user) {
         throw NotFoundException({ message: "Invalid login credentials " });

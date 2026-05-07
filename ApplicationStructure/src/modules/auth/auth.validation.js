@@ -17,3 +17,15 @@ export const signup = {
     }).required()
 
 }
+
+export const resendConfirmEmail = {
+    body: joi.object().keys({
+        email: generalValidationFields.email.required(),
+    }).required()
+}
+
+export const confirmEmail = {
+    body: resendConfirmEmail.body.append({
+        otp:generalValidationFields.otp.required()
+    }).required()
+}
