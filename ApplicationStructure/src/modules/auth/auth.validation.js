@@ -26,6 +26,13 @@ export const resendConfirmEmail = {
 
 export const confirmEmail = {
     body: resendConfirmEmail.body.append({
-        otp:generalValidationFields.otp.required()
+        otp: generalValidationFields.otp.required()
+    }).required()
+}
+
+export const resetForgetPasswordCode = {
+    body: confirmEmail.body.append({
+        password: generalValidationFields.password.required(),
+        confirmPassword: generalValidationFields.confirmPassword("password").required()
     }).required()
 }

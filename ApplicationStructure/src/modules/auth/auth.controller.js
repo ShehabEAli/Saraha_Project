@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { confirmEmail, login, resendConfirmEmail, signup, signupWithGmail } from './auth.service.js';
+import { confirmEmail, login, requestForgetPasswordOtp, resendConfirmEmail, resetForgetPasswordOtp, signup, signupWithGmail, verifyForgetPasswordOtp } from './auth.service.js';
 import { successResponse } from '../../common/utils/index.js';
 import * as validators from './auth.validation.js'
 import { validation } from '../../middleware/validation.middleware.js';
@@ -30,9 +30,33 @@ router.patch(
         return successResponse({ res })
     })
 
+router.post(
+    "/request-forget-password-code",
+    validation(validators.resendConfirmEmail),
+    async (req, res, next) => {
+        await requestForgetPasswordOtp(req.body)
+        return successResponse({ res })
+    })
+
+router.patch(
+    "/verify-forget-password-code",
+    validation(validators.confirmEmail),
+    async (req, res, next) => {
+        await verifyForgetPasswordOtp(req.body)
+        return successResponse({ res })
+    })
+
+router.patch(
+    "/reset-forget-password-code",
+    validation(validators.resetForgetPasswordCode),
+    async (req, res, next) => {
+        await resetForgetPasswordOtp(req.body)
+        return successResponse({ res })
+    })
+
 router.post("/login", validation(validators.login), async (req, res, next) => {
     const credentials = await login(req.body, `${req.protocol}://${req.host}`)
-    return successResponse({ res, data: { credentials } })
+    return successResponse({ res, data: { ...credentials } })
 })
 
 router.post("/signup/gmail", async (req, res, next) => {

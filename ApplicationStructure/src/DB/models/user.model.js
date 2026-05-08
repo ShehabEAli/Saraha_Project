@@ -28,6 +28,7 @@ const userSchema = new mongoose.Schema({
             return this.profilePicture == ProviderEnum.System
         }
     },
+    oldPassword: [String],
     phone: String,
 
     provider: { type: Number, enum: Object.values(ProviderEnum), default: ProviderEnum.System },

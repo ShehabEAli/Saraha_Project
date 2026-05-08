@@ -1,7 +1,7 @@
 import { EmailEnum, ProviderEnum } from "../../common/enums/index.js";
-import { blockOtpKey, deleteKey, get, incr, keys, maxAttemptOtpKey, otpKey, set, ttl } from "../../common/services/index.js";
+import { baseRevokeTokenKey, blockOtpKey, deleteKey, get, incr, keys, maxAttemptOtpKey, otpKey, set, ttl, update } from "../../common/services/index.js";
 import { BadRequestException, compareHash, ConflictException, createLoginCredentials, createNumberOtp, emailEvent, encrypt, generateHash, NotFoundException, sendEmail, verifyEmailTemplate } from "../../common/utils/index.js";
-import { create, findOne, UserModel } from "../../DB/index.js";
+import { create, findOne, findOneAndUpdate, updateOne, UserModel } from "../../DB/index.js";
 import { OAuth2Client } from 'google-auth-library';
 
 
@@ -14,7 +14,7 @@ const sendEmailOtp = async ({ email, subject, title } = {}) => {
 
     const remainingOtpTTL = await ttl(otpKey({ email, subject }))
     if (remainingOtpTTL > 0) {
-        throw BadRequestException({ message: "Sorry you cannot request a new otp until the first one is expired, please try again later" });
+        throw BadRequestException({ message: `Sorry you cannot request a new otp until the first one is expired, please try again after ${remainingOtpTTL} seconds` });
     }
 
     const maxTrial = await get(maxAttemptOtpKey({ email, subject }))
@@ -114,6 +114,66 @@ export const resendConfirmEmail = async (inputs) => {
     return;
 }
 
+export const requestForgetPasswordOtp = async (inputs) => {
+    const { email } = inputs;
+
+    const account = await findOne({
+        model: UserModel,
+        filter: {
+            email,
+            confirmEmail: { $exists: true },
+            provider: ProviderEnum.System
+        }
+    });
+    if (!account) {
+        throw NotFoundException({ message: "Fail to find matching account" });
+    }
+
+    await sendEmailOtp({ email, subject: EmailEnum.ForgetPassword, title: "Reset Code" })
+
+    return;
+}
+
+export const verifyForgetPasswordOtp = async (inputs) => {
+    const { email, otp } = inputs;
+
+    const hashOtp = await get(otpKey({ email, subject: EmailEnum.ForgetPassword }))
+    if (!hashOtp) {
+        throw NotFoundException({ message: "Expired otp" });
+    }
+
+    if (!await compareHash({ plainText: otp, cipherText: hashOtp })) {
+        throw ConflictException({ message: "Invalid otp" });
+    }
+
+    return;
+}
+
+export const resetForgetPasswordOtp = async (inputs) => {
+    const { email, otp, password } = inputs;
+
+    await verifyForgetPasswordOtp({ email, otp })
+    const user = await findOneAndUpdate({
+        model: UserModel,
+        filter: {
+            email,
+            confirmEmail: { $exists: true },
+            provider: ProviderEnum.System
+        },
+        update: {
+            password: await generateHash({ plainText: password }),
+            changeCredentialsTime: new Date()
+        }
+    })
+    if (!user) {
+        throw NotFoundException({ message: "account not exist" });
+    }
+    const tokenKeys = await keys(baseRevokeTokenKey(user._id))
+    const otpKeys = await keys(otpKey({ email, subject: EmailEnum.ForgetPassword }))
+    await deleteKey([...tokenKeys, ...otpKeys])
+    return;
+}
+
 export const login = async (inputs, issuer) => {
     const { email, password } = inputs;
 
@@ -130,26 +190,6 @@ export const login = async (inputs, issuer) => {
     return createLoginCredentials(user, issuer);
 }
 
-
-/*
-{
-  iss: 'https://accounts.google.com',
-  azp: '466110454802-lg3qumtqeijm1u4s86vdrmhp7egsaeh9.apps.googleusercontent.com',
-  aud: '466110454802-lg3qumtqeijm1u4s86vdrmhp7egsaeh9.apps.googleusercontent.com',
-  sub: '109392006632074925525',
-  email: 'shehabelsehelly@gmail.com',
-  email_verified: true,
-  nbf: 1775780416,
-  name: 'Shehab Elsehelly',
-  picture: 'https://lh3.googleusercontent.com/a/ACg8ocJTtsn9u_Kx36miWJyCe8b6q6G3BnNWq7kLU8uBoqXvF4M6h58E=s96-c',
-  given_name: 'Shehab',
-  family_name: 'Elsehelly',
-  iat: 1775780716,
-  exp: 1775784316,
-  jti: '34deda9ec17a8a6d33e8709af690010d50e589fe'
-}
-
- */
 const verifyGoogleAccount = async (idToken) => {
     const client = new OAuth2Client();
     const ticket = await client.verifyIdToken({

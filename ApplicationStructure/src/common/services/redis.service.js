@@ -2,7 +2,7 @@ import { redisClient } from "../../DB/index.js";
 import { EmailEnum } from "../enums/email.enum.js";
 
 export const baseRevokeTokenKey = (userId) => {
-    return `RevokeToken::${userId}`
+    return `RevokeToken::${userId.toString()}`
 }
 
 export const revokeTokenKey = ({ userId, jti }) => {
