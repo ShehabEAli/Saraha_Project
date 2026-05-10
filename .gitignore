@@ -1,0 +1,4 @@
+/ApplicationStructure/config/.env.development
+/ApplicationStructure/config/.env.production
+/ApplicationStructure/node_modules
+uploads

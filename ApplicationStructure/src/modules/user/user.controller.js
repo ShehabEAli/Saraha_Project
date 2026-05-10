@@ -4,8 +4,10 @@ import { fileFieldValidation, localFileUpload, successResponse } from "../../com
 import { validation, authentication, authorization } from "../../middleware/index.js";
 import { RoleEnum, TokenTypeEnum } from "../../common/enums/index.js";
 import * as validators from './user.validation.js'
+import { messageRouter } from "../message/index.js";
 const router = Router()
 
+router.use("/:receiverId/message", messageRouter)
 router.post("/logout",
     authentication(),
     async (req, res, next) => {
