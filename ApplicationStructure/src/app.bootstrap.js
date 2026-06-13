@@ -1,17 +1,16 @@
-
 import { deleteKey, get, keys, set, update } from './common/services/index.js'
 import { authenticationDB, connectRedis, redisClient } from './DB/index.js'
 import { authRouter, messageRouter, userRouter } from './modules/index.js'
 import { globalErrorHandling, sendEmail } from './common/utils/index.js'
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit'
 import { ORIGINS, port } from '../config/config.service.js'
 import path, { resolve } from 'node:path'
 import { log } from 'node:console'
-import { ipKeyGenerator, rateLimit } from 'express-rate-limit'
+import geoip from 'geoip-lite'
 import express from 'express'
 import helmet from 'helmet'
-import cors from 'cors'
 import axios from 'axios';
-import geoip from 'geoip-lite'
+import cors from 'cors'
 
 async function bootstrap() {
     const app = express()
